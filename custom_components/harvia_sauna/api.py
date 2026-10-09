@@ -24,7 +24,7 @@ _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
 # Renew the id_token when it expires within this many seconds.
 _TOKEN_RENEW_MARGIN = 300  # 5 minutes
 
-ITIVE_KEYS = ("token", "authorization", "password", "secret", "credential")
+_SENSITIVE_KEYS = ("token", "authorization", "password", "secret", "credential")
 
 
 def _redact(obj: Any) -> Any:
