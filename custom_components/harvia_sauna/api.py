@@ -31,7 +31,7 @@ def _redact(obj: Any) -> Any:
     """Recursively redact sensitive-looking values before logging."""
     if isinstance(obj, dict):
         return {
-            k: ("***REDACTED***" if any(s in.lower() for s in _SENSITIVE_KEYS) else _redact(v))
+            k: ("***SENSITIVE***" if any(s in k.lower() for s in _SENSITIVE_KEYS) else _redact(v))
             for k, v in obj.items()
         }
     if isinstance(obj, list):
