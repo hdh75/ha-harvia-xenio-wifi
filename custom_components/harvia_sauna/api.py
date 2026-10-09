@@ -15,7 +15,7 @@ from home.helpers.aiohttp_client import async_get_clientsession
 
 from .constants import DOMAIN, REGION
 
-_LOGGER = logging.getLogger(____)
+_LOGGER = logging.getLogger(__name__)
 
 # Timeout for all outgoing HTTP requests.
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
@@ -68,7 +68,7 @@ class HarviaSaunaAPI:
         self.password = password
         self.hass = hass
         self.endpoints: Optional[Dict[str, Any]] = None
-        self.client:[Cognito] = None
+        self.client: Optional[Cognito] = None
         self.token_data: Optional[Dict[str, str]] = None
 
         # Guards against concurrent endpoint fetching / token renewal.
@@ -209,7 +209,7 @@ class HarviaSaunaAPI:
 
     def _token_expires_soon(self) -> bool:
         """Return True if the cached id_token is missing or near expiry."""
-        if.token_data is None or "id_token" not in self.token_data:
+        if self.token_data is None or "id_token" not in self.token_data:
             return True
         exp = _jwt_exp(self.token_data["id_token"])
         if exp is None:
@@ -217,9 +217,11 @@ class HarviaSaunaAPI:
         return time.time() + _TOKEN_RENEW_MARGIN >= exp
 
     async def getIdToken(self) -> str:
-        """Return a valid id_token, renewing only when to expiry."""
+        """Return a valid id_token, renewing only when needed."""
         if self._token_expires_soon():
-            await self.checkAndewTokens()
+            await self.checkAndRenewTokens()
+        if self.token_data is None or "id_token" not in self.token_data:
+            raise HarviaAuthError("No id_token available after authentication")
         return self.token_data["id_token"]
 
     async def getHeaders(self) -> Dict[str, str]:
@@ -238,14 +240,15 @@ class HarviaSaunaAPI:
         session = async_get_clientsession(self.hass)
         url = self.endpoints[endpoint]["endpoint"]
 
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("Endpoint on '%s'", url)
-            _LOGGER.debug("\tQuery: %s", json.dumps(_redact(query), indent=4        async def _do_request() -> Dict[str, Any]:
+        async def _do_request() -> Dict[str, Any]:
             headers = await self.getHeaders()
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("Endpoint on '%s'", url)
+                _LOGGER.debug("\tQuery: %s", json.dumps(_redact(query), indent=4))
+
             async with session.post(
                 url, json=query, headers=headers, timeout=_HTTP_TIMEOUT
             ) as response:
-                # Read body once so we can log useful info on errors.
                 text = await response.text()
 
                 if response.status in (401, 403):
@@ -253,7 +256,7 @@ class HarviaSaunaAPI:
                         f"Unauthorized ({response.status}) calling {endpoint}"
                     )
 
-                if response.status< 200 or response.status >= 300:
+                if response.status < 200 or response.status >= 300:
                     raise HarviaApiError(
                         f"HTTP {response.status} calling {endpoint}: {text[:500]}"
                     )
@@ -266,18 +269,14 @@ class HarviaSaunaAPI:
                     ) from e
 
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "\tReturned data: %s",.dumps(_redact(data), indent=4)
-                    )
+                    _LOGGER.debug("\tReturned data: %s", json.dumps(_redact(data), indent=4))
                 return data
 
-        # First attempt; on auth failure, force renewal and retry once.
         try:
             return await _do_request()
         except HarviaAuthError:
             _LOGGER.info("Authorization failed; renewing token and retrying once.")
             try:
-                # Force renewal even if local exp check thinks it's fine.
                 self.token_data = None
                 await self.checkAndRenewTokens()
             except HarviaAuthError:
@@ -300,17 +299,17 @@ class HarviaSaunaAPI:
         return {"wssUrl": wssUrl, "host": host}
 
     async def getWebsockUrlByEndpoint(self, endpoint: str) -> str:
-        websockEndpoint = await.getWebsocketEndpoint(endpoint)
+        websock_endpoint = await self.getWebsocketEndpoint(endpoint)
         id_token = await self.getIdToken()
-        headerPayload = {"Authorization": id_token, "host": websockEndpoint["host"]}
-        encoded_header = base64.b64encode(json.dumps(headerPayload).encode())
-        wssUrl = (
-            websockEndpoint["wssUrl"]
+        header_payload = {"Authorization": id_token, "host": websock_endpoint["host"]}
+        encoded_header = base64.b64encode(json.dumps(header_payload).encode("utf-8"))
+        wss_url = (
+            websock_endpoint["wssUrl"]
             + "?header="
             + quote(encoded_header.decode("utf-8"))
             + "&payload=e30="
         )
-        return wssUrl
+        return wss_url
 
     async def get_appsync_ws_start_message(
         self,
