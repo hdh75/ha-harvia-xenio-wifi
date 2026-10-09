@@ -27,13 +27,13 @@ Component has been tested with the Harvia Xenio Wifi (CX001WIFI) and Harvia Cili
 
 You can quickly add this repository to HACS by clicking the button below:
 
-[![Open your Home Assistant instance and show the add repository dialog with a specific repository pre-filled.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=brettmeyerowitz&repository=ha-harvia-xenio-wifi)
+[![Open your Home Assistant instance and show the add repository dialog with a specific repository pre-filled.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hdh75&repository=ha-harvia-xenio-wifi)
 
 **Manual Installation Steps:**
 
 1. Go to HACS in your Home Assistant instance.
 2. Click the three dots in the top right and select "Custom repositories".
-3. Add this repository URL: `https://github.com/brettmeyerowitz/ha-harvia-xenio-wifi` as an Integration.
+3. Add this repository URL: `https://github.com/hdh75/ha-harvia-xenio-wifi` as an Integration.
 4. Search for "Harvia Sauna" in HACS and install.
 5. Restart Home Assistant after installation.
 
@@ -46,6 +46,4 @@ Your username and password is corresponding with the MyHarvia app.
 
 This integration was developed by Ruben Harms. It uses the unofficial API of Harvia Xenio WiFi controllers and is not directly associated with Harvia.
 
-[home-assistant-harvia-sauna]: https://github.com/brettmeyerowitz/ha-harvia-xenio-wifi
-[buymecoffee]: https://www.buymeacoffee.com/rubenharms
-[buymecoffeebadge]: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
+[home-assistant-harvia-sauna]: https://github.com/hdh75/ha-harvia-xenio-wifi
