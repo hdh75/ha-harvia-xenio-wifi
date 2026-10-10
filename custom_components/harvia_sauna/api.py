@@ -141,17 +141,16 @@ class HarviaSaunaAPI:
             endpoints = await self.getEndpoints()
             user_pool_id = endpoints["users"]["userPoolId"]
             client_id = endpoints["users"]["clientId"]
-            # NOTE: variable kept for manual review — identityPoolId is a pool
-            # identifier, not an id_token; verify whether it belongs here.
-            id_token = endpoints["users"]["identityPoolId"]
 
+            # The Cognito client is authenticated with username/password, not with the
+            # identity pool ID. Passing the pool ID as an id_token here is incorrect and
+            # can cause confusing auth-state issues during token refresh.
             u = await self.hass.async_add_executor_job(
                 lambda: Cognito(
                     user_pool_id,
                     client_id,
                     username=self.username,
                     user_pool_region=REGION,
-                    id_token=id_token,
                 )
             )
             self.client = u
@@ -237,6 +236,9 @@ class HarviaSaunaAPI:
         if self.endpoints is None:
             await self.getEndpoints()
 
+        if endpoint not in self.endpoints:
+            raise HarviaApiError(f"Unknown endpoint key: {endpoint}")
+
         session = async_get_clientsession(self.hass)
         url = self.endpoints[endpoint]["endpoint"]
 
@@ -277,7 +279,10 @@ class HarviaSaunaAPI:
         except HarviaAuthError:
             _LOGGER.info("Authorization failed; renewing token and retrying once.")
             try:
+                # Force a full reauth cycle so stale cached state cannot mask a
+                # real session expiration or refresh problem.
                 self.token_data = None
+                self.client = None
                 await self.checkAndRenewTokens()
             except HarviaAuthError:
                 raise
@@ -290,6 +295,11 @@ class HarviaSaunaAPI:
     # ------------------------------------------------------------------
 
     async def getWebsocketEndpoint(self, endpoint: str) -> dict:
+        if self.endpoints is None:
+            await self.getEndpoints()
+        if endpoint not in self.endpoints:
+            raise HarviaApiError(f"Unknown endpoint key: {endpoint}")
+
         ep = self.endpoints[endpoint]["endpoint"]
         regex = r"^https:\/\/(.+)\.appsync-api\.(.+)\/graphql$"
         regexReplace = r"wss://\1.appsync-realtime-api.\2/graphql"
