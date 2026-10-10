@@ -11,7 +11,10 @@ import aiohttp
 import botocore.exceptions
 from pycognito import Cognito
 
-from home.helpers.aiohttp_client import async_get_clientsession
+try:
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+except ModuleNotFoundError:  # pragma: no cover - compatibility fallback
+    from home.helpers.aiohttp_client import async_get_clientsession
 
 from .constants import DOMAIN, REGION
 
@@ -71,6 +74,9 @@ class HarviaSaunaAPI:
         self.client: Optional[Cognito] = None
         self.token_data: Optional[Dict[str, str]] = None
 
+        # Reuse the HA-managed aiohttp session instead of creating a new one per request.
+        self._session = async_get_clientsession(self.hass)
+
         # Guards against concurrent endpoint fetching / token renewal.
         self._endpoints_lock = asyncio.Lock()
         self._token_lock = asyncio.Lock()
@@ -98,12 +104,11 @@ class HarviaSaunaAPI:
                 return self.endpoints
 
             _LOGGER.debug("Fetching endpoints.")
-            session = async_get_clientsession(self.hass)
 
             async def _fetch(ep: str) -> tuple:
                 url = f"https://prod.myharvia-cloud.net/{ep}/endpoint"
                 _LOGGER.debug("Fetching endpoint: %s", url)
-                async with session.get(url, timeout=_HTTP_TIMEOUT) as response:
+                async with self._session.get(url, timeout=_HTTP_TIMEOUT) as response:
                     if response.status < 200 or response.status >= 300:
                         raise HarviaApiError(
                             f"HTTP {response.status} while fetching endpoint '{ep}'"
@@ -239,7 +244,6 @@ class HarviaSaunaAPI:
         if endpoint not in self.endpoints:
             raise HarviaApiError(f"Unknown endpoint key: {endpoint}")
 
-        session = async_get_clientsession(self.hass)
         url = self.endpoints[endpoint]["endpoint"]
 
         async def _do_request() -> Dict[str, Any]:
@@ -248,7 +252,7 @@ class HarviaSaunaAPI:
                 _LOGGER.debug("Endpoint on '%s'", url)
                 _LOGGER.debug("\tQuery: %s", json.dumps(_redact(query), indent=4))
 
-            async with session.post(
+            async with self._session.post(
                 url, json=query, headers=headers, timeout=_HTTP_TIMEOUT
             ) as response:
                 text = await response.text()
