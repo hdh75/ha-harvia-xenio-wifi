@@ -108,9 +108,19 @@ class HarviaThermostat(ClimateEntity):
 
     async def async_update(self):
         """Update the current state of the thermostat."""
-        # Add logic here to fetch the current and target temperature from the device
-        # self._current_temperature = await self._device.fetch_current_temperature()
-        # self._target_temperature = await self._device.fetch_target_temperature()
+        # ClimateEntity is polled by Home Assistant. Read the values from the
+        # device here so they are refreshed independently of light/service calls.
+        fetch_current = getattr(self._device, "fetch_current_temperature", None)
+        if callable(fetch_current):
+            current_temperature = await fetch_current()
+            if current_temperature is not None:
+                self._current_temperature = float(current_temperature)
+
+        fetch_target = getattr(self._device, "fetch_target_temperature", None)
+        if callable(fetch_target):
+            target_temperature = await fetch_target()
+            if target_temperature is not None:
+                self._target_temperature = float(target_temperature)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Harvia thermostats."""
